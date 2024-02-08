@@ -1,0 +1,10 @@
+Flask
+flask_cors
+numpy
+scipy
+pandas
+jams
+librosa
+keras
+tensorflow
+musicxml
