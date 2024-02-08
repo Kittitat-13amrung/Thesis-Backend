@@ -249,8 +249,6 @@ class guitar2Tab:
                     results.append(self.extract_note_info(prediction[x]))
 
 
-        return results
-
         # part-wise
         s1 = XMLScorePartwise()
 
@@ -373,12 +371,16 @@ class guitar2Tab:
                     m1n1.add_child(XMLChord())
 
                     # add pitch to note
-                    m1p1 = m1n1.add_child(XMLPitch())
+                m1p1 = m1n1.add_child(XMLPitch())
 
 
+                # if prediciton isn't a chord
                 if(len(pitch[idx]) > 1 and len(pitch[idx][0]) > 1):
                     m1p1.add_child(XMLStep(pitch[idx][0][0]))
+                    m1p1.xml_octave = pitch[0][1]
                     m1p1.xml_alter = 1
+                    m1n1.xml_duration = dur
+                # if prediction is a chord
                 else:
                     m1p1.add_child(XMLStep(pitch[idx][0]))
 
@@ -405,6 +407,7 @@ class guitar2Tab:
             measure += 1
             add_measure(idx=str(measure), notes=results[itr:itr+4])
 
+        return s1.to_string()
         # save musicxml object to file path
-        xml_path = "test.xml"
-        s1.write(xml_path)
+        # xml_path = "test.xml"
+        # s1.write(xml_path)

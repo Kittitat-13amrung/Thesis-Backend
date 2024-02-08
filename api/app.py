@@ -1,8 +1,7 @@
-from  flask import Flask, request, flash, redirect
+from  flask import Flask, request, flash, redirect, jsonify
 # from flask_cors import CORS, cross_origin
 from model.prediction import guitar2Tab
 import io
-import json
 
 app = Flask(__name__)
 
@@ -28,7 +27,7 @@ def upload_file():
             predictions = model.predict(audio)
             # app.logger.info(predictions[0])
             print(predictions)
-            return "done"
+            return jsonify(message=predictions), 200
         # check if the post request has the file part
         # if 'file' not in request.files:
         #     flash('No file part')
