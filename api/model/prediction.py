@@ -4,6 +4,7 @@ import numpy as np
 from musicxml import *
 from .tabCNN import model
 import os
+from datetime import datetime
 
 class guitar2Tab:
     def __init__ (self,
@@ -197,7 +198,7 @@ class guitar2Tab:
         self.th64 = self.th32 / 2
 
         # load in pre-trained weights
-        new_model = model(weights=f"{os.getcwd()}\/api\model\weights.h5")
+        new_model = model(weights=f"{os.getcwd()}/model/weights.h5")
         predictor = new_model.build_model()
 
         # predictor.load_weights("weights.h5")
@@ -407,7 +408,10 @@ class guitar2Tab:
             measure += 1
             add_measure(idx=str(measure), notes=results[itr:itr+4])
 
-        return s1.to_string()
         # save musicxml object to file path
-        # xml_path = "test.xml"
-        # s1.write(xml_path)
+        now = datetime.now()
+        filename = now.strftime("%Y%m%d%H%M%S")
+        xml_path = f"output/{filename}.xml"
+        s1.write(xml_path)
+
+        return filename

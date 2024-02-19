@@ -8,3 +8,4 @@ librosa
 keras
 tensorflow
 musicxml
+boto3
