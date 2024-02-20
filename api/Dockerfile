@@ -1,6 +1,12 @@
 # Set base image (host OS)
 FROM python:3.10.7-slim
 
+#install aws cli
+RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" \
+    && unzip awscliv2.zip \
+    && ./aws/install -i /usr/local/aws-cli -b /usr/local/bin \
+    && rm awscliv2.zip
+
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONCODE .
 

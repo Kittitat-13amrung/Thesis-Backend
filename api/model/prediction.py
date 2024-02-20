@@ -93,7 +93,7 @@ class guitar2Tab:
 
     # CQT
     ## Function
-    def calc_cqt(self, x,fs=22050,hop_length=512, n_bins=192, cqt_bins_per_octave=24, mag_exp=4):
+    def calc_cqt(self, x,fs=22050,hop_length=64, n_bins=192, cqt_bins_per_octave=24, mag_exp=4):
         new_x = x.astype(float)
         new_x = librosa.util.normalize(new_x)
         C = np.abs(librosa.cqt(new_x,
@@ -102,8 +102,8 @@ class guitar2Tab:
             n_bins=n_bins,
             bins_per_octave=cqt_bins_per_octave))
 
-        C_mag = librosa.magphase(C)[0]**mag_exp
-        CdB = librosa.core.amplitude_to_db(C_mag ,ref=np.max)
+        # C_mag = librosa.magphase(C)[0]**mag_exp
+        # CdB = librosa.core.amplitude_to_db(C_mag ,ref=np.max)
         return C
 
     # CQT Threshold
@@ -113,11 +113,11 @@ class guitar2Tab:
         return new_cqt
 
     # Onset Envelope from Cqt
-    def calc_onset_env(self, cqt, sr=22050, hop_length=512):
+    def calc_onset_env(self, cqt, sr=22050, hop_length=64):
         return librosa.onset.onset_strength(S=cqt, sr=sr, aggregate=np.mean, hop_length=hop_length)
 
     # Onset from Onset Envelope
-    def calc_onset(self, cqt, sr=22050, hop_length=512, pre_post_max=6, backtrack=True):
+    def calc_onset(self, cqt, sr=22050, hop_length=64, pre_post_max=6, backtrack=True):
         onset_env=self.calc_onset_env(cqt)
         onset_frames = librosa.onset.onset_detect(onset_envelope=onset_env,
                                             sr=sr, units='frames',
@@ -171,7 +171,7 @@ class guitar2Tab:
 
         # preprocess audio by minimising less apparent noises in the sample
         CdB = self.calc_cqt(x=y3)
-        new_cqt=self.cqt_thresholded(CdB,-30)
+        new_cqt=self.cqt_thresholded(CdB,-80)
         o1 = new_cqt
 
         # swap the dimension
@@ -231,12 +231,13 @@ class guitar2Tab:
                 temp.append(x)
                 pos.append(x)
 
-
+        tmp = []
         results = []
         for x in range(dur):
             out = self.tab2bin(prediction[x])
             # if(len(np.where(out == 1)[0]) > 0):
             if(x in onsets[1]):
+                tmp.append(self.extract_note_info(prediction[x]))
                 # x = round(x / ratio)
                 # idx = onsets[1].index(x)
                 idx = np.where(onsets[1] == x)[0][0]
@@ -371,36 +372,30 @@ class guitar2Tab:
                     # add note as part of a chord
                     m1n1.add_child(XMLChord())
 
-                    # add pitch to note
+                # add pitch to note
                 m1p1 = m1n1.add_child(XMLPitch())
 
 
-                # if prediciton isn't a chord
                 if(len(pitch[idx]) > 1 and len(pitch[idx][0]) > 1):
                     m1p1.add_child(XMLStep(pitch[idx][0][0]))
-                    m1p1.xml_octave = pitch[0][1]
                     m1p1.xml_alter = 1
-                    m1n1.xml_duration = dur
-                # if prediction is a chord
                 else:
                     m1p1.add_child(XMLStep(pitch[idx][0]))
 
-                    m1p1.xml_octave = pitch[idx][1]
+                m1p1.xml_octave = pitch[idx][1]
 
-                    m1n1.add_child(XMLType(beat_type))
-                    m1n1.xml_duration = dur
-                    m1not1 = m1n1.add_child(XMLNotations())
-                    m1not1tech1 = m1not1.add_child(XMLTechnical())
-
-                    # if it is a chord
-                    if(len(string_fret[0]) > 1):
-                        m1not1tech1.xml_string = translate_string[int(string_fret[0][idx]) + 1]
-                        m1not1tech1.xml_fret = int(string_fret[1][idx])
-                    # if just a note
-                    else:
-                        m1not1tech1.xml_string = translate_string[int(string_fret[0][0]) + 1]
-                        m1not1tech1.xml_fret = int(string_fret[1][0])
-
+                m1n1.add_child(XMLType('quarter'))
+                m1n1.xml_duration = dur
+                m1not1 = m1n1.add_child(XMLNotations())
+                m1not1tech1 = m1not1.add_child(XMLTechnical())
+                # if it is a chord
+                if(len(string_fret[0]) > 1):
+                    m1not1tech1.xml_string = translate_string[int(string_fret[0][idx]) + 1]
+                    m1not1tech1.xml_fret = int(string_fret[1][idx])
+                # if just a note
+                else:
+                    m1not1tech1.xml_string = translate_string[int(string_fret[0][0]) + 1]
+                    m1not1tech1.xml_fret = int(string_fret[1][0])
 
         # add notes to each measure in step of 4
         measure = 0
