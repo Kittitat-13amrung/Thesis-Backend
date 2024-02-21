@@ -5,6 +5,7 @@ from model.prediction import guitar2Tab
 import io
 from azure.storage.blob import BlobClient
 import os
+import config
 
 app = Flask(__name__)
 
@@ -16,7 +17,7 @@ def allowed_file(filename):
 
 @app.route('/')
 def hello_world():
-    port = os.environ.get('FLASK_PORT')
+    port = config.PORT
 
     return jsonify(port), 200
 
@@ -53,9 +54,9 @@ def upload_file():
             # s3.upload_file(filename, bucket_name, f'xml/{predictions}.xml',
             #             ExtraArgs={'ACL': 'public-read'})
             xml_blob = BlobClient(
-                account_url=os.environ.get('AZURE_ACCOUNT_URL'),
-                credential=os.environ.get('AZURE_STORAGE_KEY'),
-                container_name=os.environ.get('AZURE_CONTAINER_NAME'),
+                account_url=config.ACCOUNT_URL,
+                credential=config.STORAGE_KEY,
+                container_name=config.CONTAINER_NAME,
                 blob_name=f'xml/{predictions}.xml'
             )
 
@@ -67,9 +68,9 @@ def upload_file():
             #             ExtraArgs={'ACL': 'public-read'})
 
             audio_blob = BlobClient(
-                account_url=os.environ.get('AZURE_ACCOUNT_URL'),
-                credential=os.environ.get('AZURE_STORAGE_KEY'),
-                container_name=os.environ.get('AZURE_CONTAINER_NAME'),
+                account_url=config.ACCOUNT_URL,
+                credential=config.STORAGE_KEY,
+                container_name=config.CONTAINER_NAME,
                 blob_name=f'audio/{predictions}.wav'
             )
 
