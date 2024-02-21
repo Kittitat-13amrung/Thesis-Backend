@@ -8,4 +8,6 @@ librosa
 keras
 tensorflow
 musicxml
-boto3
+gunicorn
+python-dotenv
+azure-storage-blob

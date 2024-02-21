@@ -3,7 +3,7 @@ from werkzeug.utils import secure_filename
 from flask_cors import CORS, cross_origin
 from model.prediction import guitar2Tab
 import io
-import boto3
+from azure.storage.blob import BlobClient
 import os
 
 app = Flask(__name__)
@@ -16,16 +16,9 @@ def allowed_file(filename):
 
 @app.route('/')
 def hello_world():
-    s3 = boto3.client('s3')
-    filename = f'{os.getcwd()}/output/test.xml'
-    bucket_name = "thesis-bucket-2024"
-    s3.upload_file(filename, bucket_name, 'test.xml',
-                   ExtraArgs={'ACL': 'public-read'})
-    # response = s3.list_buckets()
-    return jsonify({
-        "status": 201,
-        "url": f"https://{bucket_name}.s3.amazonaws.com/test.xml"
-    }), 201
+    port = os.environ.get('FLASK_PORT')
+
+    return jsonify(port), 200
 
 
 @app.route('/predict', methods=['POST'])
@@ -49,20 +42,39 @@ def upload_file():
             # return predictions
 
 
-            # s3 bucket
-            s3 = boto3.client('s3')
+            # # s3 bucket
+            # s3 = boto3.client('s3')
 
-            # s3 variables
+            # # s3 variables
             filename = f'{os.getcwd()}/output/{predictions}.xml'
-            bucket_name = "thesis-bucket-2024"
+            # bucket_name = "thesis-bucket-2024"
 
-            # upload xml file
-            s3.upload_file(filename, bucket_name, f'xml/{predictions}.xml',
-                        ExtraArgs={'ACL': 'public-read'})
+            # # upload xml file
+            # s3.upload_file(filename, bucket_name, f'xml/{predictions}.xml',
+            #             ExtraArgs={'ACL': 'public-read'})
+            xml_blob = BlobClient(
+                account_url=os.environ.get('AZURE_ACCOUNT_URL'),
+                credential=os.environ.get('AZURE_STORAGE_KEY'),
+                container_name=os.environ.get('AZURE_CONTAINER_NAME'),
+                blob_name=f'xml/{predictions}.xml'
+            )
+
+            with open(filename, "rb") as xml_file:
+                xml_blob.upload_blob(xml_file)
             
-            # # upload original audio file
-            s3.upload_file(f'{os.getcwd()}/audio/{predictions}.wav', bucket_name, f'audio/{predictions}.wav',
-                        ExtraArgs={'ACL': 'public-read'})
+            # # # upload original audio file
+            # s3.upload_file(f'{os.getcwd()}/audio/{predictions}.wav', bucket_name, f'audio/{predictions}.wav',
+            #             ExtraArgs={'ACL': 'public-read'})
+
+            audio_blob = BlobClient(
+                account_url=os.environ.get('AZURE_ACCOUNT_URL'),
+                credential=os.environ.get('AZURE_STORAGE_KEY'),
+                container_name=os.environ.get('AZURE_CONTAINER_NAME'),
+                blob_name=f'audio/{predictions}.wav'
+            )
+
+            with open(f'{os.getcwd()}/audio/{predictions}.wav', "rb") as audio_file:
+                audio_blob.upload_blob(audio_file)
             
             # Delete the xml file from folder
             output_folder = f'{os.getcwd()}/output'
@@ -76,8 +88,8 @@ def upload_file():
             return jsonify({
                 "status": 201,
                 "filename": predictions,
-                "original_audio_url": f"https://{bucket_name}.s3.amazonaws.com/audio/{predictions}.wav",
-                "url": f"https://{bucket_name}.s3.amazonaws.com/xml/{predictions}.xml"
+                "original_audio_url": f"https://thesisbackendstorage.blob.core.windows.net/thesisbackendcontainer/audio/{predictions}.wav",
+                "url": f"https://thesisbackendstorage.blob.core.windows.net/thesisbackendcontainer/xml/{predictions}.xml"
             }), 201
         # check if the post request has the file part
         # if 'file' not in request.files:
