@@ -6,7 +6,7 @@ pandas
 jams
 librosa
 keras
-tensorflow
+tensorflow-cpu
 musicxml
 gunicorn
 python-dotenv

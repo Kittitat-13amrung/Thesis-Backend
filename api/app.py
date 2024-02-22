@@ -1,11 +1,11 @@
 from  flask import Flask, request, flash, redirect, jsonify
 from werkzeug.utils import secure_filename
 from flask_cors import CORS, cross_origin
-from model.prediction import guitar2Tab
 import io
 from azure.storage.blob import BlobClient
 import os
 import config
+from model.prediction import guitar2Tab
 
 app = Flask(__name__)
 
@@ -53,9 +53,8 @@ def upload_file():
             # # upload xml file
             # s3.upload_file(filename, bucket_name, f'xml/{predictions}.xml',
             #             ExtraArgs={'ACL': 'public-read'})
-            xml_blob = BlobClient(
-                account_url=config.ACCOUNT_URL,
-                credential=config.STORAGE_KEY,
+            xml_blob = BlobClient.from_connection_string(
+                conn_str=config.CONNECTION_STRING,
                 container_name=config.CONTAINER_NAME,
                 blob_name=f'xml/{predictions}.xml'
             )
@@ -67,9 +66,8 @@ def upload_file():
             # s3.upload_file(f'{os.getcwd()}/audio/{predictions}.wav', bucket_name, f'audio/{predictions}.wav',
             #             ExtraArgs={'ACL': 'public-read'})
 
-            audio_blob = BlobClient(
-                account_url=config.ACCOUNT_URL,
-                credential=config.STORAGE_KEY,
+            audio_blob = BlobClient.from_connection_string(
+                conn_str=config.CONNECTION_STRING,
                 container_name=config.CONTAINER_NAME,
                 blob_name=f'audio/{predictions}.wav'
             )
