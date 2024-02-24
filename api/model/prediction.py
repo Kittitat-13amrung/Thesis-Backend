@@ -153,11 +153,10 @@ class guitar2Tab:
             return "none"
         
 
-    def predict(self, file_audio):
+    def predict(self, file_audio, filename:str):
         y, sr = librosa.load(file_audio)
 
         sr_downs = 22050
-
 
         # STFT parameters
         hop_length = 64
@@ -404,9 +403,15 @@ class guitar2Tab:
             add_measure(idx=str(measure), notes=results[itr:itr+4])
 
         # save musicxml object to file path
-        now = datetime.now()
-        filename = now.strftime("%Y%m%d%H%M%S")
         xml_path = f"output/{filename}.xml"
         s1.write(xml_path)
 
-        return filename
+        return { 
+                "filename": filename, 
+                "bpm": tempo,
+                "key": "C",
+                "time_signature": "4/4",
+                "duration": librosa.get_duration(y=y3, sr=sr_downs),
+                "tuning": "Guitar Standard Tuning",
+                "genre": "Unknown",
+                }

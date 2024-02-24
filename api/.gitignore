@@ -67,6 +67,8 @@ db.sqlite3-journal
 .flaskenv
 instance/
 .webassets-cache
+audio/
+output/
 
 # Scrapy stuff:
 .scrapy
