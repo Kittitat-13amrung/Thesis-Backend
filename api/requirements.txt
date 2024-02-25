@@ -12,3 +12,4 @@ gunicorn
 python-dotenv
 azure-storage-blob
 pyodbc
+pyjwt

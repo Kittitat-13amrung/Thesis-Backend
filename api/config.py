@@ -15,3 +15,6 @@ DB_NAME = os.environ.get('DB_NAME')
 DB_USERNAME = os.environ.get('DB_USERNAME')
 DB_PWD = os.environ.get('DB_PWD')
 DB_DRIVER = os.environ.get('DB_DRIVER')
+
+# JWT Secret Key
+JWT_SECRET_KEY = os.environ.get('SECRET_KEY')
