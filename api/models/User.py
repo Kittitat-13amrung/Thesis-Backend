@@ -53,9 +53,10 @@ class User:
     def get_by_email(self, email):
         """Get a user by email"""
         cursor.execute("SELECT id, email, password, displayName FROM users WHERE email=?", email)
-        user = [dict(zip([column[0] for column in cursor.description], row)) for row in cursor.fetchall()][0]
+        user = [dict(zip([column[0] for column in cursor.description], row)) for row in cursor.fetchall()] or None
         if not user:
             return
+        user = user[0]
         return user
 
     # This method is used to encrypt the password

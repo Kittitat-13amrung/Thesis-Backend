@@ -17,9 +17,6 @@ app = Flask(__name__)
 
 ALLOWED_EXTENSIONS = {'wav', 'mp3'}
 
-cnxn = pyodbc.connect('DRIVER='+config.DB_DRIVER+';SERVER='+config.DB_URL+',1433;DATABASE='+config.DB_NAME+';UID='+config.DB_USERNAME+';PWD='+config.DB_PWD)
-
-db_cursor = cnxn.cursor()
 
 # check file extensions
 def allowed_file(filename):
@@ -95,11 +92,14 @@ def hello_world():
 @app.route('/songs')
 @cross_origin()
 def songs():
+    conn = pyodbc.connect('DRIVER='+config.DB_DRIVER+';SERVER='+config.DB_URL+',1433;DATABASE='+config.DB_NAME+';UID='+config.DB_USERNAME+';PWD='+config.DB_PWD)
     data = []
+    db_cursor = conn.cursor()
     db_cursor.execute("SELECT * FROM songs")
     columns = [column[0] for column in db_cursor.description]
     for row in db_cursor.fetchall():
         data.append(dict(zip(columns, row)))
+    db_cursor.close()
             
     return jsonify({"status": 200, "data": data}), 200
 
@@ -131,8 +131,11 @@ def upload_file():
         prediction = predict_model(audio, filename=filename_without_extension)
         
         # write to database
+        conn = pyodbc.connect('DRIVER='+config.DB_DRIVER+';SERVER='+config.DB_URL+',1433;DATABASE='+config.DB_NAME+';UID='+config.DB_USERNAME+';PWD='+config.DB_PWD)
+        db_cursor = conn.cursor()
         db_cursor.execute("INSERT INTO songs(name, filename, artist, bpm, key_signature, time_signature, duration, tuning, genre) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", filename_without_extension, prediction['filename'], "Unknown", prediction['bpm'], prediction['key'], prediction['time_signature'], prediction['duration'], prediction['tuning'], "Unknown")
         db_cursor.commit()
+        db_cursor.close()
 
         # upload xml and audio file to azure blob storage
         blob_urls = upload_file_to_blob_storage_and_delete_files(filename_without_extension)
@@ -146,6 +149,7 @@ def upload_file():
         }), 201
 
 @app.route("/users/create", methods=["POST"])
+@cross_origin()
 def add_user():
     try:
         user = request.json
@@ -169,7 +173,7 @@ def add_user():
             }, 409
         return {
             "message": "Successfully created new user",
-            "data": jsonify(user)
+            "data": user
         }, 201
     
     except Exception as e:
@@ -179,9 +183,8 @@ def add_user():
             "data": None
         }, 500
 
-
-
 @app.route("/users/login", methods=["POST"])
+@cross_origin()
 def login():
     try:
         data = request.json
@@ -219,7 +222,7 @@ def login():
                     "message": str(e)
                 }, 500
         return {
-            "message": "Error fetching auth token!, invalid email or password",
+            "message": "invalid email or password!",
             "data": None,
             "error": "Unauthorized"
         }, 404
@@ -231,6 +234,7 @@ def login():
         }, 500
     
 @app.route('/logout')
+@cross_origin()
 def logout():
     session.pop('logged_in', None)
     return jsonify({'message': 'You are logged out'}), 200
