@@ -17,6 +17,9 @@ app = Flask(__name__)
 
 ALLOWED_EXTENSIONS = {'wav', 'mp3'}
 
+conn = pyodbc.connect('DRIVER='+config.DB_DRIVER+';SERVER='+config.DB_URL+';PORT=1433;DATABASE='+config.DB_NAME+';UID='+config.DB_USERNAME+';PWD='+config.DB_PWD)
+db_cursor = conn.cursor()
+
 
 # check file extensions
 def allowed_file(filename):
@@ -92,9 +95,7 @@ def hello_world():
 @app.route('/songs')
 @cross_origin()
 def songs():
-    conn = pyodbc.connect('DRIVER='+config.DB_DRIVER+';SERVER='+config.DB_URL+',1433;DATABASE='+config.DB_NAME+';UID='+config.DB_USERNAME+';PWD='+config.DB_PWD)
     data = []
-    db_cursor = conn.cursor()
     db_cursor.execute("SELECT * FROM songs")
     columns = [column[0] for column in db_cursor.description]
     for row in db_cursor.fetchall():
@@ -131,8 +132,6 @@ def upload_file():
         prediction = predict_model(audio, filename=filename_without_extension)
         
         # write to database
-        conn = pyodbc.connect('DRIVER='+config.DB_DRIVER+';SERVER='+config.DB_URL+',1433;DATABASE='+config.DB_NAME+';UID='+config.DB_USERNAME+';PWD='+config.DB_PWD)
-        db_cursor = conn.cursor()
         db_cursor.execute("INSERT INTO songs(name, filename, artist, bpm, key_signature, time_signature, duration, tuning, genre) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", filename_without_extension, prediction['filename'], "Unknown", prediction['bpm'], prediction['key'], prediction['time_signature'], prediction['duration'], prediction['tuning'], "Unknown")
         db_cursor.commit()
         db_cursor.close()

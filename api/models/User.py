@@ -3,9 +3,9 @@ import pyodbc
 import jwt
 import hashlib
 
-cnxn = pyodbc.connect('DRIVER='+config.DB_DRIVER+';SERVER='+config.DB_URL+',1433;DATABASE='+config.DB_NAME+';UID='+config.DB_USERNAME+';PWD='+config.DB_PWD)
-cursor = cnxn.cursor()
 
+conn = pyodbc.connect('DRIVER='+config.DB_DRIVER+';SERVER='+config.DB_URL+',1433;DATABASE='+config.DB_NAME+';UID='+config.DB_USERNAME+';PWD='+config.DB_PWD)
+cursor = conn.cursor()
 class User:
     # This class is used to handle user related operations
     def __init__(self):
@@ -23,7 +23,8 @@ class User:
 
         # create new user
         cursor.execute("INSERT INTO users (displayName, email, password) VALUES (?, ?, ?)", displayName, email, hashed_password)
-        cnxn.commit()
+        cursor.execute("INSERT INTO user_role (role) VALUES (?, ?, ?)", user['id'], 'user')
+        conn.commit()
 
         new_user = self.get_by_email(email)
         
@@ -44,6 +45,7 @@ class User:
     def get_by_id(self, user_id):
         """Get a user by id"""
         user = cursor.execute("SELECT * FROM users WHERE _id=?", user_id)
+
         if not user:
             return { "message": "User not found", "data": None, "error": "Not found" }, 404
         user.pop("password")
@@ -53,6 +55,7 @@ class User:
     def get_by_email(self, email):
         """Get a user by email"""
         cursor.execute("SELECT id, email, password, displayName FROM users WHERE email=?", email)
+
         user = [dict(zip([column[0] for column in cursor.description], row)) for row in cursor.fetchall()] or None
         if not user:
             return
