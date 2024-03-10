@@ -6,19 +6,18 @@ from azure.storage.blob import BlobClient
 import os
 import config
 from model.prediction import guitar2Tab
-import pyodbc
+# import pyodbc
 import jwt
 from datetime import datetime, timedelta
 from functools import wraps
-from assets.jwt import token_required
-from models.User import User
+# from assets.jwt import token_required
+# from models.User import User
 
 app = Flask(__name__)
 
 ALLOWED_EXTENSIONS = {'wav', 'mp3'}
 
-conn = pyodbc.connect('DRIVER='+config.DB_DRIVER+';SERVER='+config.DB_URL+';PORT=1433;DATABASE='+config.DB_NAME+';UID='+config.DB_USERNAME+';PWD='+config.DB_PWD)
-db_cursor = conn.cursor()
+# conn = pyodbc.connect('DRIVER='+config.DB_DRIVER+';SERVER='+config.DB_URL+',1433;DATABASE='+config.DB_NAME+';UID='+config.DB_USERNAME+';PWD='+config.DB_PWD)
 
 
 # check file extensions
@@ -67,9 +66,7 @@ def upload_file_to_blob_storage_and_delete_files(filename):
     return { "audio_url": audio_blob.url, "xml_url": xml_blob.url }
 
 # predict model function
-def predict_model(file_audio, filename):
-    # read audio file and convert to binary
-    audio = io.BytesIO(file_audio.read())
+def predict_model(audio, filename):
 
     # run prediction model
     model = guitar2Tab()
@@ -85,7 +82,7 @@ def predict_model(file_audio, filename):
 
 # ROUTES
 @app.route('/')
-@token_required
+# @token_required
 def hello_world():
     port = config.PORT
 
@@ -96,11 +93,12 @@ def hello_world():
 @cross_origin()
 def songs():
     data = []
-    db_cursor.execute("SELECT * FROM songs")
-    columns = [column[0] for column in db_cursor.description]
-    for row in db_cursor.fetchall():
-        data.append(dict(zip(columns, row)))
-    db_cursor.close()
+    # db_cursor = conn.cursor()
+    # db_cursor.execute("SELECT * FROM songs")
+    # columns = [column[0] for column in db_cursor.description]
+    # for row in db_cursor.fetchall():
+    #     data.append(dict(zip(columns, row)))
+    # db_cursor.close()
             
     return jsonify({"status": 200, "data": data}), 200
 
@@ -121,7 +119,7 @@ def upload_file():
         if(file_audio and not allowed_file(file_audio.filename)):
             return jsonify({"status": 401, "message": "Incorrect file extension. Allowed file extensions are .wav, .mp3, and .ogg"}), 401
 
-        # check if the post request has the file part called 'audio'
+        # read audio file and convert to binary
         audio = io.BytesIO(file_audio.read())
 
         filename_without_extension = secure_filename(os.path.splitext(file_audio.filename)[0])
@@ -129,9 +127,12 @@ def upload_file():
         # COMPLETED: AUTO INCREMENT PRIMARY ID - MODIFIED THE DATABASE TABLE
 
         # prediction model
-        prediction = predict_model(audio, filename=filename_without_extension)
+        # prediction = predict_model(audio, filename=filename_without_extension)
         
+        return prediction
+
         # write to database
+        db_cursor = conn.cursor()
         db_cursor.execute("INSERT INTO songs(name, filename, artist, bpm, key_signature, time_signature, duration, tuning, genre) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", filename_without_extension, prediction['filename'], "Unknown", prediction['bpm'], prediction['key'], prediction['time_signature'], prediction['duration'], prediction['tuning'], "Unknown")
         db_cursor.commit()
         db_cursor.close()
@@ -147,96 +148,96 @@ def upload_file():
             "url": blob_urls.get("xml_url")
         }), 201
 
-@app.route("/users/create", methods=["POST"])
-@cross_origin()
-def add_user():
-    try:
-        user = request.json
-        if not user:
-            return {
-                "message": "Please provide user details",
-                "data": None,
-                "error": "Bad request"
-            }, 400
-        # validate input
-        # is_validated = validate_user(**user)
-        # if is_validated is not True:
-        #     return dict(message='Invalid data', data=None, error=is_validated), 400
+# @app.route("/users/create", methods=["POST"])
+# @cross_origin()
+# def add_user():
+#     try:
+#         user = request.json
+#         if not user:
+#             return {
+#                 "message": "Please provide user details",
+#                 "data": None,
+#                 "error": "Bad request"
+#             }, 400
+#         # validate input
+#         # is_validated = validate_user(**user)
+#         # if is_validated is not True:
+#         #     return dict(message='Invalid data', data=None, error=is_validated), 400
         
-        user = User().create(**user)
-        if not user:
-            return {
-                "message": "User already exists",
-                "error": "Conflict",
-                "data": None
-            }, 409
-        return {
-            "message": "Successfully created new user",
-            "data": user
-        }, 201
+#         user = User().create(**user)
+#         if not user:
+#             return {
+#                 "message": "User already exists",
+#                 "error": "Conflict",
+#                 "data": None
+#             }, 409
+#         return {
+#             "message": "Successfully created new user",
+#             "data": user
+#         }, 201
     
-    except Exception as e:
-        return {
-            "message": "Something went wrong",
-            "error": str(e),
-            "data": None
-        }, 500
+#     except Exception as e:
+#         return {
+#             "message": "Something went wrong",
+#             "error": str(e),
+#             "data": None
+#         }, 500
 
-@app.route("/users/login", methods=["POST"])
-@cross_origin()
-def login():
-    try:
-        data = request.json
-        if not data:
-            return {
-                "message": "Please provide user details",
-                "data": None,
-                "error": "Bad request"
-            }, 400
-        # validate input
-        # is_validated = validate_email_and_password(data.get('email'), data.get('password'))
-        # if is_validated is not True:
-        #     return dict(message='Invalid data', data=None, error=is_validated), 400
+# @app.route("/users/login", methods=["POST"])
+# @cross_origin()
+# def login():
+#     try:
+#         data = request.json
+#         if not data:
+#             return {
+#                 "message": "Please provide user details",
+#                 "data": None,
+#                 "error": "Bad request"
+#             }, 400
+#         # validate input
+#         # is_validated = validate_email_and_password(data.get('email'), data.get('password'))
+#         # if is_validated is not True:
+#         #     return dict(message='Invalid data', data=None, error=is_validated), 400
 
-        user = User().login(
-            data["email"],
-            data["password"]
-        )
+#         user = User().login(
+#             data["email"],
+#             data["password"]
+#         )
 
-        if user:
-            try:
-                # token should expire after 24 hrs
-                user["token"] = jwt.encode(
-                    {"user_id": user["id"]},
-                    config.JWT_SECRET_KEY,
-                    algorithm="HS256"
-                )
-                return {
-                    "message": "Successfully fetched auth token",
-                    "data": user
-                }
-            except Exception as e:
-                return {
-                    "error": "Something went wrong",
-                    "message": str(e)
-                }, 500
-        return {
-            "message": "invalid email or password!",
-            "data": None,
-            "error": "Unauthorized"
-        }, 404
-    except Exception as e:
-        return {
-                "message": "Something went wrong!",
-                "error": str(e),
-                "data": None
-        }, 500
+#         if user:
+#             try:
+#                 # token should expire after 24 hrs
+#                 user["token"] = jwt.encode(
+#                     {"user_id": user["id"]},
+#                     config.JWT_SECRET_KEY,
+#                     algorithm="HS256"
+#                 )
+#                 return {
+#                     "message": "Successfully fetched auth token",
+#                     "data": user
+#                 }
+#             except Exception as e:
+#                 return {
+#                     "error": "Something went wrong",
+#                     "message": str(e)
+#                 }, 500
+#         return {
+#             "message": "invalid email or password!",
+#             "data": None,
+#             "error": "Unauthorized"
+#         }, 404
+#     except Exception as e:
+#         return {
+#                 "message": "Something went wrong!",
+#                 "error": str(e),
+#                 "data": None
+#         }, 500
     
-@app.route('/logout')
-@cross_origin()
-def logout():
-    session.pop('logged_in', None)
-    return jsonify({'message': 'You are logged out'}), 200
+# @app.route('/logout')
+# @cross_origin()
+# def logout():
+#     session.pop('logged_in', None)
+#     return jsonify({'message': 'You are logged out'}), 200
 
 if (__name__ == '__main__'):
     app.run(debug=True)

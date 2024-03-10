@@ -1,11 +1,10 @@
 import config
 import pyodbc
-import jwt
 import hashlib
 
 
 conn = pyodbc.connect('DRIVER='+config.DB_DRIVER+';SERVER='+config.DB_URL+',1433;DATABASE='+config.DB_NAME+';UID='+config.DB_USERNAME+';PWD='+config.DB_PWD)
-cursor = conn.cursor()
+
 class User:
     # This class is used to handle user related operations
     def __init__(self):
@@ -22,6 +21,7 @@ class User:
         hashed_password = self.encrypt_password(password)
 
         # create new user
+        cursor = conn.cursor()
         cursor.execute("INSERT INTO users (displayName, email, password) VALUES (?, ?, ?)", displayName, email, hashed_password)
         cursor.execute("INSERT INTO user_role (role) VALUES (?, ?, ?)", user['id'], 'user')
         conn.commit()
@@ -44,6 +44,7 @@ class User:
     # This method is get a user by id
     def get_by_id(self, user_id):
         """Get a user by id"""
+        cursor = conn.cursor()
         user = cursor.execute("SELECT * FROM users WHERE _id=?", user_id)
 
         if not user:
@@ -54,6 +55,7 @@ class User:
     # This method is get a user by email
     def get_by_email(self, email):
         """Get a user by email"""
+        cursor = conn.cursor()
         cursor.execute("SELECT id, email, password, displayName FROM users WHERE email=?", email)
 
         user = [dict(zip([column[0] for column in cursor.description], row)) for row in cursor.fetchall()] or None

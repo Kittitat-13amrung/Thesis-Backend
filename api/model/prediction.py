@@ -9,7 +9,7 @@ from datetime import datetime
 class guitar2Tab:
     def __init__ (self,
                   sr=22050,
-                  hop_length=512,
+                  hop_length=64,
                  ):
         
         self.sr = sr
@@ -128,6 +128,23 @@ class guitar2Tab:
         onset_boundaries = np.concatenate([[0], onset_frames, [cqt.shape[1]]])
         onset_times = librosa.frames_to_time(onset_boundaries, sr=sr, hop_length=hop_length)
         return [onset_times, onset_boundaries, onset_env]
+    
+    def extract_key_signature(self, y, sr):
+        # Compute the Chroma Short-Time Fourier Transform (chroma_stft)
+        chromagram = librosa.feature.chroma_stft(y=y, sr=sr)
+
+        # Calculate the mean chroma feature across time
+        mean_chroma = np.mean(chromagram, axis=1)
+
+        # Define the mapping of chroma features to keys
+        chroma_to_key = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
+
+        # Find the key by selecting the maximum chroma feature
+        estimated_key_index = np.argmax(mean_chroma)
+        estimated_key = chroma_to_key[estimated_key_index]
+
+        return estimated_key
+
 
 
     # convert prediction to tab and its notes
@@ -170,7 +187,7 @@ class guitar2Tab:
 
         # preprocess audio by minimising less apparent noises in the sample
         CdB = self.calc_cqt(x=y3)
-        new_cqt=self.cqt_thresholded(CdB,-80)
+        new_cqt=self.cqt_thresholded(CdB,-30)
         o1 = new_cqt
 
         # swap the dimension
@@ -178,7 +195,6 @@ class guitar2Tab:
 
         # calculate onsets
         onsets=self.calc_onset(new_cqt,pre_post_max, backtrack)
-
 
         # Estimate Tempo
         tempo, beats = librosa.beat.beat_track(y=None, sr=sr_downs, onset_envelope=onsets[2], hop_length=hop_length,
@@ -406,10 +422,12 @@ class guitar2Tab:
         xml_path = f"output/{filename}.xml"
         s1.write(xml_path)
 
+        key_signature = self.extract_key_signature(y3, sr_downs)
+
         return { 
                 "filename": filename, 
                 "bpm": tempo,
-                "key": "C",
+                "key": key_signature,
                 "time_signature": "4/4",
                 "duration": librosa.get_duration(y=y3, sr=sr_downs),
                 "tuning": "Guitar Standard Tuning",
