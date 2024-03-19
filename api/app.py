@@ -18,6 +18,7 @@ app = Flask(__name__)
 ALLOWED_EXTENSIONS = {'wav', 'mp3'}
 
 # conn = pyodbc.connect('DRIVER='+config.DB_DRIVER+';SERVER='+config.DB_URL+',1433;DATABASE='+config.DB_NAME+';UID='+config.DB_USERNAME+';PWD='+config.DB_PWD)
+model = guitar2Tab()
 
 
 # check file extensions
@@ -69,7 +70,6 @@ def upload_file_to_blob_storage_and_delete_files(filename):
 def predict_model(audio, filename):
 
     # run prediction model
-    model = guitar2Tab()
     prediction = model.predict(audio, filename=filename)
 
     audio_filename = prediction['filename']
@@ -127,7 +127,7 @@ def upload_file():
         # COMPLETED: AUTO INCREMENT PRIMARY ID - MODIFIED THE DATABASE TABLE
 
         # prediction model
-        # prediction = predict_model(audio, filename=filename_without_extension)
+        prediction = predict_model(audio, filename=filename_without_extension)
         
         return prediction
 

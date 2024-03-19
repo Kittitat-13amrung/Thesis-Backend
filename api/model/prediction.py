@@ -9,7 +9,7 @@ from datetime import datetime
 class guitar2Tab:
     def __init__ (self,
                   sr=22050,
-                  hop_length=64,
+                  hop_length=256,
                  ):
         
         self.sr = sr
@@ -93,7 +93,7 @@ class guitar2Tab:
 
     # CQT
     ## Function
-    def calc_cqt(self, x,fs=22050,hop_length=64, n_bins=192, cqt_bins_per_octave=24, mag_exp=4):
+    def calc_cqt(self, x,fs=22050,hop_length=256, n_bins=192, cqt_bins_per_octave=24, mag_exp=4):
         new_x = x.astype(float)
         new_x = librosa.util.normalize(new_x)
         C = np.abs(librosa.cqt(new_x,
@@ -102,30 +102,34 @@ class guitar2Tab:
             n_bins=n_bins,
             bins_per_octave=cqt_bins_per_octave))
 
-        # C_mag = librosa.magphase(C)[0]**mag_exp
-        # CdB = librosa.core.amplitude_to_db(C_mag ,ref=np.max)
         return C
 
     # CQT Threshold
-    def cqt_thresholded(self, cqt,thres=-61):
+    def cqt_thresholded(self, cqt,thres=-80):
+        C_mag = librosa.magphase(cqt)[0]**4
+        CdB = librosa.amplitude_to_db(C_mag ,ref=np.max)
+        low_mag_indices = np.where(CdB < thres)
         new_cqt=np.copy(cqt)
-        new_cqt[new_cqt<thres]=-120
+        new_cqt[low_mag_indices] = 0.01
         return new_cqt
 
     # Onset Envelope from Cqt
-    def calc_onset_env(self, cqt, sr=22050, hop_length=64):
-        return librosa.onset.onset_strength(S=cqt, sr=sr, aggregate=np.mean, hop_length=hop_length)
+    def calc_onset_env(self, y, sr=22050, hop_length=256):
+        return librosa.onset.onset_strength(S=y, sr=sr)
 
     # Onset from Onset Envelope
-    def calc_onset(self, cqt, sr=22050, hop_length=64, pre_post_max=6, backtrack=True):
-        onset_env=self.calc_onset_env(cqt)
-        onset_frames = librosa.onset.onset_detect(onset_envelope=onset_env,
-                                            sr=sr, units='frames',
+    def calc_onset(self, y, sr=22050, hop_length=256, pre_post_max=6, backtrack=True):
+        onset_env=self.calc_onset_env(y)
+        onset_frames = librosa.onset.onset_detect(
+                                            y=None,
+                                            onset_envelope=onset_env,
+                                            sr=sr,
+                                            units='frames',
                                             hop_length=hop_length,
                                             backtrack=backtrack,
-                                            pre_max=pre_post_max,
-                                            post_max=pre_post_max)
-        onset_boundaries = np.concatenate([[0], onset_frames, [cqt.shape[1]]])
+                                            wait=0.002, pre_avg=0.002, post_avg=0.002, pre_max=0.002, post_max=0.002,
+                                            )
+        onset_boundaries = np.concatenate([[0], onset_frames])
         onset_times = librosa.frames_to_time(onset_boundaries, sr=sr, hop_length=hop_length)
         return [onset_times, onset_boundaries, onset_env]
     
@@ -143,7 +147,23 @@ class guitar2Tab:
         estimated_key_index = np.argmax(mean_chroma)
         estimated_key = chroma_to_key[estimated_key_index]
 
-        return estimated_key
+        key = estimated_key.split('#')[0]
+
+        # key_mapping = {
+        #     'C': 0, 'G': 1, 'D': 2, 'A': 3, 'E': 4, 'B': 5, 'F#': 6, 'C#': 7,
+        #     'F': -1, 'Bb': -2, 'Eb': -3, 'Ab': -4, 'Db': -5, 'Gb': -6, 'Cb': -7,
+        # }
+        key_alter = 1
+        # fifths = key_mapping[key[0]]
+        # Determine the number of sharps or flats
+        if "B" in estimated_key:
+            key_alter = -1  # Sharp
+
+        return {
+            "key": key,
+            "key_alter": key_alter,
+            "full_key": estimated_key
+        }
 
 
 
@@ -171,12 +191,12 @@ class guitar2Tab:
         
 
     def predict(self, file_audio, filename:str):
-        y, sr = librosa.load(file_audio)
+        y, sr = librosa.load(file_audio, sr=22050)
 
-        sr_downs = 22050
+        # sr = 22050
 
         # STFT parameters
-        hop_length = 64
+        hop_length = 512
 
         # reassign y audio to y3
         y3 = y
@@ -186,22 +206,39 @@ class guitar2Tab:
         backtrack=True
 
         # preprocess audio by minimising less apparent noises in the sample
-        CdB = self.calc_cqt(x=y3)
-        new_cqt=self.cqt_thresholded(CdB,-30)
-        o1 = new_cqt
+        C = self.calc_cqt(x=y, hop_length=hop_length)
+        new_cqt=self.cqt_thresholded(C,-80)
+        o1 = new_cqt    
 
         # swap the dimension
         x1 = np.swapaxes(o1, 0, 1)
 
         # calculate onsets
-        onsets=self.calc_onset(new_cqt,pre_post_max, backtrack)
+        onsets=self.calc_onset(new_cqt, hop_length=hop_length, pre_post_max=pre_post_max, backtrack=backtrack)
+
+        o_env = librosa.onset.onset_strength(S=librosa.amplitude_to_db(C, ref=np.max), sr=22050)
+        onset_raw = librosa.onset.onset_detect(y=y, onset_envelope=o_env, sr=22050, hop_length=hop_length, wait=0.2, pre_avg=0.2, post_avg=0.2, pre_max=0.2, post_max=0.2)
+        # onsets1 = librosa.frames_to_time(onsets[1], sr=22050, hop_length=hop_length)
+
+        S = np.abs(librosa.stft(y=y, hop_length=hop_length))
+        rms = librosa.feature.rms(S=S)
+        onset_bt_rms = librosa.onset.onset_backtrack(onset_raw, rms[0])
+        onsets1 = librosa.frames_to_time(onset_bt_rms)
+
+        print(
+            onsets1,
+            onset_raw,
+        )
 
         # Estimate Tempo
-        tempo, beats = librosa.beat.beat_track(y=None, sr=sr_downs, onset_envelope=onsets[2], hop_length=hop_length,
-                    start_bpm=120.0, tightness=100, trim=True, bpm=None,
+        tempo, beats = librosa.beat.beat_track(y=None, sr=sr, onset_envelope=onsets1, hop_length=hop_length,
+                    start_bpm=90.0, tightness=100, trim=True, bpm=None,
                     units='frames')
         
         tempo=int(2*round(tempo/2))
+
+        # Estimate Key Signature
+        key_signature = self.extract_key_signature(y, sr)
 
         # calculate beat type in seconds for quantization
         self.quarter = 60/tempo
@@ -236,35 +273,59 @@ class guitar2Tab:
         # predict audio
         prediction = predictor.predict(X)
 
-        temp = []
-        pos = []
-        # get the indices of the time frame that has note(s) in it
-        for x in range(dur):
-            out = self.tab2bin(prediction[x])
-            if(len(np.where(out == 1)[0]) > 0):
-                # if(x in beat_frames):
-                temp.append(x)
-                pos.append(x)
+        # temp = []
+        # pos = []
+        # # get the indices of the time frame that has note(s) in it
+        # for x in range(dur):
+        #     out = self.tab2bin(prediction[x])
+        #     if(len(np.where(out == 1)[0]) > 0):
+        #         # if(x in beat_frames):
+        #         temp.append(x)
+        #         pos.append(x)
 
-        tmp = []
-        results = []
-        for x in range(dur):
-            out = self.tab2bin(prediction[x])
-            # if(len(np.where(out == 1)[0]) > 0):
-            if(x in onsets[1]):
-                tmp.append(self.extract_note_info(prediction[x]))
-                # x = round(x / ratio)
-                # idx = onsets[1].index(x)
-                idx = np.where(onsets[1] == x)[0][0]
-                next_dur = float(onsets[0][idx + 1]) if idx+1 < len(onsets[0]) else float(onsets[0][idx])
-
-                if(len(np.where(out == 1)[0]) > 0):
-                    results.append({ **self.extract_note_info(prediction[x]), 'beat_type': self.quantize((next_dur - float(onsets[0][idx])), [self.sixteenth, self.eighth, self.quarter, self.half, self.whole]) })
-                elif (x + 1 in pos):
-                    results.append({ **self.extract_note_info(prediction[x+1]), 'beat_type': self.quantize((next_dur - float(onsets[0][idx])), [self.sixteenth, self.eighth, self.quarter, self.half, self.whole]) })
+        def map_onsets_to_results(onsets, results):
+            mapped_results = []
+            for onset_frame in onsets:
+                pred_frame = self.tab2bin(results[onset_frame])
+                if (len(np.where(pred_frame == 1)[0]) > 0):
+                    mapped_results.append({ **self.extract_note_info(results[onset_frame]), 'beat_type': 'eighth' })
                 else:
-                    results.append(self.extract_note_info(prediction[x]))
+                    for y in range(max(onset_frame - 5, 0), min(onset_frame + 5, len(results) - 1)):
+                        pred_frame = self.tab2bin(results[y])
+                        if (len(np.where(pred_frame == 1)[0]) > 0):
+                            mapped_results.append({ **self.extract_note_info(results[y]), 'beat_type': 'eighth' })
+                            break
+                    # closest_frame = np.argmin(np.abs(results - onset_frame))
+                    # pred_closest_frame = self.tab2bin(results[closest_frame])
+                    # if (len(np.where(pred_closest_frame == 1)[0]) > 0):
+                    #     mapped_results.append({ **self.extract_note_info(results[closest_frame]), 'beat_type': 'eighth' })
+                    # else:
+                    #     mapped_results.append({ **self.extract_note_info(results[closest_frame]), 'beat_type': 'eighth' })
+            return mapped_results
+        
+        print(x1.shape)
+        
+        # print(map_onsets_to_results(onsets[1], prediction))
 
+        # tmp = []
+        results = map_onsets_to_results(onset_bt_rms, prediction)
+        # for x in range(dur):
+        #     out = self.tab2bin(prediction[x])
+        #     if(len(np.where(out == 1)[0]) > 0):
+        #         results.append({ **self.extract_note_info(prediction[x]), 'beat_type': 'eighth' })
+            # if(x in onsets0):
+                # tmp.append(self.extract_note_info(prediction[x]))
+                # x = round(x / ratio)
+                # idx = onsets0.index(x)
+                # idx = np.where(onsets0 == x)[0][0]
+                # next_dur = float(onsets[0][idx + 1]) if idx+1 < len(onsets[0]) else float(onsets[0][idx])
+
+                # if(len(np.where(out == 1)[0]) > 0):
+                #     results.append({ **self.extract_note_info(prediction[x]), 'beat_type': self.quantize((next_dur - float(onsets[0][idx])), [self.sixteenth, self.eighth, self.quarter, self.half, self.whole]) })
+                # elif (x + 1 in pos):
+                #     results.append({ **self.extract_note_info(prediction[x+1]), 'beat_type': self.quantize((next_dur - float(onsets[0][idx])), [self.sixteenth, self.eighth, self.quarter, self.half, self.whole]) })
+                # else:
+                #     results.append(self.extract_note_info(prediction[x]))
 
         # part-wise
         s1 = XMLScorePartwise()
@@ -306,14 +367,14 @@ class guitar2Tab:
             attr1 = m1.add_child(XMLAttributes())
 
             # add division
-            attr1.add_child(XMLDivisions(1))
+            attr1.add_child(XMLDivisions(480))
 
             # add attributes to the first measure
             if(idx == '1'):
                 # add key
-                k1 = attr1.add_child(XMLKey(print_object="no"))
-                k1.add_child(XMLFifths(0))
-                k1.add_child(XMLMode("major"))
+                k1 = attr1.add_child(XMLKey(print_object="yes"))
+                k1.add_child(XMLKeyStep(str(key_signature['key'])))
+                k1.add_child(XMLKeyAlter(int(key_signature['key_alter'])))
 
                 # add time
                 t1 = attr1.add_child(XMLTime(print_object="no"))
@@ -390,7 +451,6 @@ class guitar2Tab:
                 # add pitch to note
                 m1p1 = m1n1.add_child(XMLPitch())
 
-
                 if(len(pitch[idx]) > 1 and len(pitch[idx][0]) > 1):
                     m1p1.add_child(XMLStep(pitch[idx][0][0]))
                     m1p1.xml_alter = 1
@@ -399,8 +459,8 @@ class guitar2Tab:
 
                 m1p1.xml_octave = pitch[idx][1]
 
-                m1n1.add_child(XMLType('quarter'))
-                m1n1.xml_duration = dur
+                m1n1.add_child(XMLType('eighth'))
+                m1n1.xml_duration = 30
                 m1not1 = m1n1.add_child(XMLNotations())
                 m1not1tech1 = m1not1.add_child(XMLTechnical())
                 # if it is a chord
@@ -422,14 +482,12 @@ class guitar2Tab:
         xml_path = f"output/{filename}.xml"
         s1.write(xml_path)
 
-        key_signature = self.extract_key_signature(y3, sr_downs)
-
         return { 
                 "filename": filename, 
                 "bpm": tempo,
-                "key": key_signature,
+                "key": key_signature['full_key'],
                 "time_signature": "4/4",
-                "duration": librosa.get_duration(y=y3, sr=sr_downs),
+                "duration": librosa.get_duration(y=y3, sr=sr),
                 "tuning": "Guitar Standard Tuning",
                 "genre": "Unknown",
                 }
